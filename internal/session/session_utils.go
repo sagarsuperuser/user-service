@@ -35,6 +35,6 @@ func SetSessionCookie(rw http.ResponseWriter, req *http.Request, expiry time.Tim
 	// Http-only helps mitigate the risk of client side script accessing the protected cookie.
 	cookie.HttpOnly = true
 	cookie.Secure = (req.TLS != nil)
-	cookie.SameSite = http.SameSiteStrictMode
+	cookie.SameSite = http.SameSiteLaxMode
 	http.SetCookie(rw, cookie)
 }

@@ -11,9 +11,14 @@ import (
 type userIDContextKey struct{}
 
 // UserIDFromContext retrieves user info from context.
-func UserIDFromContext(ctx context.Context) (int64, bool) {
-	s, ok := ctx.Value(userIDContextKey{}).(int64)
-	return s, ok
+func UserIDFromContext(ctx context.Context) int64 {
+	if ctx == nil {
+		return 0
+	}
+	if val := ctx.Value(userIDContextKey{}); val != nil {
+		return val.(int64)
+	}
+	return 0
 }
 
 // AuthJWT wraps a route to enforce JWT auth.
@@ -32,8 +37,8 @@ func AuthJWT(secret string) RouteWrapper {
 					return errdefs.Unauthorized(jwtUtils.ErrJWTUserIDNotFound)
 				}
 
-				ctxWithUser := context.WithValue(ctx, userIDContextKey{}, userID)
-				return route.Handler()(ctxWithUser, rw, req.WithContext(ctxWithUser), vars)
+				ctx = context.WithValue(ctx, userIDContextKey{}, userID)
+				return route.Handler()(ctx, rw, req, vars)
 			},
 		}
 	}

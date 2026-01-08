@@ -1,0 +1,41 @@
+{{define "profile.html"}}
+{{template "layout" .}}
+{{end}}
+
+{{define "content"}}
+<div class="card">
+	<h1>Main Profile</h1>
+	<p class="subtitle">Your saved contact information.</p>
+
+	<div class="section">
+		<label>Full name</label>
+		<div class="field-value">{{.User.FullName}}</div>
+	</div>
+
+	<div class="section">
+		<label>Telephone</label>
+		<div class="field-value">{{.User.Telephone}}</div>
+	</div>
+
+	<div class="section">
+		<label>Email</label>
+		<div class="field-value">{{.User.Email}}</div>
+	</div>
+
+	
+	<div class="actions">
+		<a class="button" href="/profile/edit">Edit</a>
+		<form method="post" action="/logout">
+			<button type="submit" class="button secondary">Logout</button>
+		</form>
+	</div>
+</div>
+<script>
+// Bust back/forward cache snapshots so profile isn't shown after logout.
+window.addEventListener('pageshow', function (e) {
+	if (e.persisted) {
+		window.location.reload();
+	}
+});
+</script>
+{{end}}

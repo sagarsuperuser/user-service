@@ -1,0 +1,35 @@
+{{define "profile_edit.html"}}
+{{template "layout" .}}
+{{end}}
+
+{{define "content"}}
+<div class="card">
+	<h1>Enter Profile Information</h1>
+	<p class="subtitle">Update your contact info to keep things current.</p>
+	{{if .Error}}<div class="notice">{{.Error}}</div>{{end}}
+	<form method="post" action="/profile/edit">
+		<label for="full_name">Full name</label>
+		<input id="full_name" name="full_name" type="text" value="{{.User.FullName}}" maxlength="100" placeholder="Jane Doe">
+
+		<label for="telephone">Telephone</label>
+		<input id="telephone" name="telephone" type="text" value="{{.User.Telephone}}" placeholder="+1 555 123 4567">
+
+		<label for="email">Email</label>
+		<input id="email" name="email" type="email" value="{{.User.Email}}" {{if .DisableEmail}}disabled{{end}}>
+		{{if .DisableEmail}}<p class="subtitle">Email comes from Google and cannot be changed.</p>{{end}}
+
+		<div class="actions">
+			<button type="submit">Save &amp; Continue</button>
+			<a class="button secondary" href="/profile">Cancel</a>
+		</div>
+	</form>
+</div>
+<script>
+// Bust back/forward cache snapshots so profile isn't shown after logout.
+window.addEventListener('pageshow', function (e) {
+	if (e.persisted) {
+		window.location.reload();
+	}
+});
+</script>
+{{end}}

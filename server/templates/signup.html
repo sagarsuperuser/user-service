@@ -1,25 +1,25 @@
-{{define "login.html"}}
+{{define "signup.html"}}
 {{template "layout" .}}
 {{end}}
 
 {{define "content"}}
 <div class="card">
-	<h1>Welcome back</h1>
-	<p class="subtitle">Log in to continue to your profile.</p>
+	<h1>Create account</h1>
+	<p class="subtitle">Choose email/password or sign up with Google.</p>
 	{{if .Error}}<div class="notice">{{.Error}}</div>{{end}}
-	<form method="post" action="/login">
+	<form method="post" action="/signup">
 		<label for="email">Email</label>
 		<input id="email" name="username" type="email" autocomplete="email" required>
 
 		<label for="password">Password</label>
-		<input id="password" name="password" type="password" autocomplete="current-password" required>
+		<input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
 
-		<button type="submit">Continue</button>
+		<button type="submit">Sign up &amp; continue</button>
 	</form>
 
 	<div class="divider">or</div>
 	<a class="button secondary" href="/oauth2/login">Continue with Google</a>
 
-	<p class="subtitle">New here? <a href="/signup">Create an account</a></p>
+	<p class="subtitle">Already have an account? <a href="/login">Login</a></p>
 </div>
 {{end}}

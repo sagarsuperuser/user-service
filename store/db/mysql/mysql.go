@@ -70,6 +70,7 @@ func createConfig(settings *settings.Settings) *mysql.Config {
 	// multiStatements=true is required for migration.
 	// See more in: https://github.com/go-sql-driver/mysql#multistatements
 	config.MultiStatements = true
+	config.ParseTime = true
 	// Timeouts
 	config.Timeout = settings.MySQLConnectTimeout
 	config.ReadTimeout = settings.MySQLQueryTimeout

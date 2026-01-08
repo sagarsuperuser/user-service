@@ -28,10 +28,10 @@ type Settings struct {
 	MySQLPort     int    `envconfig:"MYSQL_PORT" default:"3306"`
 	MySQLDatabase string `envconfig:"MYSQL_DB" default:"appdb"`
 	MySQLUser     string `envconfig:"MYSQL_USER" default:"appuser"`
-	MySQLPassword string `envconfig:"MYSQL_PASSWORD" default:"apppass"`
+	MySQLPassword string `envconfig:"MYSQL_PASSWORD" default:"password"`
 	// Timeouts
 	MySQLConnectTimeout time.Duration `envconfig:"MYSQL_CONNECT_TIMEOUT" default:"5s"`
-	MySQLQueryTimeout   time.Duration `envconfig:"MYSQL_QUERY_TIMEOUT" defalt:"5s"`
+	MySQLQueryTimeout   time.Duration `envconfig:"MYSQL_QUERY_TIMEOUT" default:"5s"`
 	// Pool
 	MySQLMaxOpenConns    int           `envconfig:"MYSQL_MAX_OPEN_CONNS" default:"25"`
 	MySQLMaxIdleConns    int           `envconfig:"MYSQL_MAX_IDLE_CONNS" default:"10"`

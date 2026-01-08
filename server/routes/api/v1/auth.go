@@ -6,15 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/mail"
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/hlog"
 	"github.com/sagarsuperuser/userprofile/errdefs"
+	"github.com/sagarsuperuser/userprofile/internal/common"
 	"github.com/sagarsuperuser/userprofile/internal/httputil"
-	jwtUtils "github.com/sagarsuperuser/userprofile/internal/jwt"
 	oauth2Utils "github.com/sagarsuperuser/userprofile/internal/oauth2"
+	"github.com/sagarsuperuser/userprofile/internal/router"
 	sessionUtils "github.com/sagarsuperuser/userprofile/internal/session"
 	"github.com/sagarsuperuser/userprofile/store"
 	"golang.org/x/crypto/bcrypt"
@@ -28,23 +27,16 @@ type SignupReq struct {
 
 func (s *SignupReq) Validate() error {
 	username := strings.TrimSpace(s.Username)
-	if username == "" {
-		return errors.New("invalid username")
+	password := strings.TrimSpace(s.Password)
+	if username == "" || password == "" {
+		return errors.New("username or password is required")
 	}
 
-	if len(username) > 254 {
-		return errors.New("invalid username")
+	if err := common.ValidateEmail(username); err != nil {
+		return err
 	}
 
-	email := strings.ToLower(username)
-
-	// only email is alllowed as username
-	_, err := mail.ParseAddress(email)
-	if err != nil {
-		return errors.New("invalid username")
-	}
-
-	if len(s.Password) < 8 || len(s.Password) > 200 {
+	if len(password) < 8 || len(password) > 200 {
 		return errors.New("invalid password")
 	}
 
@@ -54,6 +46,15 @@ func (s *SignupReq) Validate() error {
 type LoginReq struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+func (s *LoginReq) Validate() error {
+	username := strings.TrimSpace(s.Username)
+	password := strings.TrimSpace(s.Password)
+	if username == "" || password == "" {
+		return errors.New("username or password is required")
+	}
+	return nil
 }
 
 type LoginResp struct {
@@ -72,12 +73,10 @@ func (s *APIV1Service) SignUp(ctx context.Context, rw http.ResponseWriter, req *
 
 	role := store.RoleUser
 	status := store.StatusActive
-	userCreate := &store.CreateUser{
-		Email:       signup.Username,
-		EmailLocked: false,
-		Status:      &status,
-		Role:        &role,
-		Provider:    store.ProviderLocal,
+	userCreate := &store.CreateLocalUser{
+		Email:  signup.Username,
+		Status: status,
+		Role:   role,
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(signup.Password), bcrypt.DefaultCost)
@@ -86,10 +85,14 @@ func (s *APIV1Service) SignUp(ctx context.Context, rw http.ResponseWriter, req *
 	}
 
 	strHash := string(passwordHash)
-	userCreate.PasswordHash = &strHash
+	userCreate.PasswordHash = strHash
 
-	user, err := s.Store.CreateUser(ctx, userCreate)
+	user, err := s.Store.CreateLocalUser(ctx, userCreate)
 	if err != nil {
+		if errors.Is(err, store.ErrUserAlreadyExists) {
+			return errdefs.Conflict(errors.New("user is already registered. please login"))
+		}
+
 		err = fmt.Errorf("failed to create user: %w", err)
 		return errdefs.System(err)
 	}
@@ -100,13 +103,41 @@ func (s *APIV1Service) SignUp(ctx context.Context, rw http.ResponseWriter, req *
 		return errdefs.System(err)
 	}
 	sessionUtils.SetSessionCookie(rw, req, csResult.Session.ExpiresAt, csResult.Token)
-	return nil
+
+	return httputil.WriteRawJSON(rw, http.StatusOK, newUserResp(user))
 }
 
 func (s *APIV1Service) LogIn(ctx context.Context, rw http.ResponseWriter, req *http.Request, vars map[string]string) error {
-	return httputil.WriteRawJSON(rw, http.StatusOK, LoginResp{
-		AuthToken: "",
-	})
+	loginReq := LoginReq{}
+	if err := json.NewDecoder(req.Body).Decode(&loginReq); err != nil {
+		return errdefs.InvalidParameter(fmt.Errorf("malformed request body: %w", err))
+	}
+
+	if err := loginReq.Validate(); err != nil {
+		return errdefs.InvalidParameter(err)
+	}
+
+	user, err := s.Store.GetUser(ctx, &store.FindUser{Email: &loginReq.Username})
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			return errdefs.Unauthorized(errors.New("invalid credentials, please try again"))
+		}
+		return errdefs.System(err)
+	}
+
+	// Compare the stored hashed password, with the password that is received.
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(loginReq.Password)); err != nil {
+		// If the two passwords don't match, return a 401 status.
+		return errdefs.Unauthorized(errors.New("invalid credentials, please try again"))
+	}
+
+	csResult, err := s.Store.CreateSession(ctx, user.ID)
+	if err != nil {
+		err = fmt.Errorf("failed to create sesssion: %w", err)
+		return errdefs.System(err)
+	}
+	sessionUtils.SetSessionCookie(rw, req, csResult.Session.ExpiresAt, csResult.Token)
+	return httputil.WriteRawJSON(rw, http.StatusOK, newUserResp(user))
 }
 
 func (s *APIV1Service) Oauth2Login(ctx context.Context, rw http.ResponseWriter, req *http.Request, vars map[string]string) error {
@@ -149,26 +180,40 @@ func (s *APIV1Service) Oauth2Callback(ctx context.Context, rw http.ResponseWrite
 	}
 
 	client := s.OAuthConfig.Client(ctx, tok)
-	user, err := oauth2Utils.FetchProviderUserInfo(ctx, client)
+	googleUser, err := oauth2Utils.FetchProviderUserInfo(ctx, client)
 	if err != nil {
 		err = fmt.Errorf("failed to fetch userinfo: %w", err)
 		return errdefs.Unauthorized(err)
 	}
-	hlog.FromRequest(req).Info().Any("user", user).Send()
-
-	token, err := jwtUtils.GenerateAccessToken(user.Email, 123456789, []byte(s.Settings.SecretKey))
+	// upsert user in DB
+	user, err := s.Store.UpsertGoogleUser(ctx, googleUser.Email, googleUser.Sub)
 	if err != nil {
-		err := fmt.Errorf("failed to generate access token: %w", err)
+		err = fmt.Errorf("failed to create/update user: %w", err)
 		return errdefs.System(err)
 	}
 
 	oauth2Utils.ClearOAuthTempCookie(rw)
 
-	return httputil.WriteRawJSON(rw, http.StatusOK, LoginResp{
-		AuthToken: token,
-	})
+	// create session token
+	csResult, err := s.Store.CreateSession(ctx, user.ID)
+	if err != nil {
+		err = fmt.Errorf("failed to create sesssion: %w", err)
+		return errdefs.System(err)
+	}
+	sessionUtils.SetSessionCookie(rw, req, csResult.Session.ExpiresAt, csResult.Token)
+	return httputil.WriteRawJSON(rw, http.StatusOK, newUserResp(user))
 }
 
 func (s *APIV1Service) LogOut(ctx context.Context, rw http.ResponseWriter, req *http.Request, vars map[string]string) error {
+	// get session info from context
+	sInfo := router.SessionInfoFromContext(ctx)
+	if sInfo == nil {
+		errdefs.System(errors.New("session info not found in context"))
+	}
+	_, err := s.Store.RevokeSession(ctx, sInfo)
+	if err != nil {
+		errdefs.System(fmt.Errorf("failed to revoke session: %w", err))
+	}
+
 	return httputil.WriteRawJSON(rw, http.StatusOK, nil)
 }

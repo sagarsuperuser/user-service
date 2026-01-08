@@ -24,6 +24,7 @@ import (
 	"github.com/sagarsuperuser/userprofile/server/middlewares"
 	apiv1 "github.com/sagarsuperuser/userprofile/server/routes/api/v1"
 	"github.com/sagarsuperuser/userprofile/server/settings"
+	"github.com/sagarsuperuser/userprofile/server/web"
 	"github.com/sagarsuperuser/userprofile/store"
 )
 
@@ -95,11 +96,24 @@ func NewServer(settings *settings.Settings, store *store.Store) *Server {
 		log.Fatal().Err(err).Msg("invalid API version configuration")
 	}
 	ret.UseMiddleware(versionMW)
+
+	// frontend routes
+	frontend, err := web.NewFrontend(settings)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize frontend")
+	}
+	frontend.RegisterRoutes(mRouter)
+	mRouter.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("server/static"))))
+
+	// backend routes
+	routers := []router.Router{
+		apiv1.NewAuthRouter(apiV1Service),
+		apiv1.NewUserRouter(apiV1Service),
+	}
 	ret.router = ret.CreateMux(
 		context.Background(),
 		mRouter,
-		apiv1.NewAuthRouter(apiV1Service),
-		apiv1.NewUserRouter(apiV1Service),
+		routers...,
 	)
 	return ret
 }
@@ -126,7 +140,7 @@ func (s *Server) makeHTTPHandler(r router.Route) http.HandlerFunc {
 			statusCode := httpstatus.FromError(err)
 			respMsg := err.Error()
 			if statusCode >= http.StatusInternalServerError {
-				// In case of InternalServerError, message sent to client are standard HTTP code messages.
+				// In case of InternalServerError, message sent to client are standard HTTP statuscode messages.
 				respMsg = http.StatusText(statusCode)
 				zerolog.Ctx(ctx).Error().Err(err).Msgf("Handler for %s %s returned error", r.Method, r.URL.Path)
 			}

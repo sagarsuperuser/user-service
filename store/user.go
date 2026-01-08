@@ -2,7 +2,16 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
+)
+
+var (
+	ErrUserAlreadyExists     = errors.New("user already exists")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrEmailUpdateNotAllowed = errors.New("email update is not allowed")
 )
 
 // Role is the type of a role.
@@ -10,19 +19,19 @@ type Role string
 
 const (
 	// RoleAdmin is the ADMIN role.
-	RoleAdmin Role = "ADMIN"
+	RoleAdmin Role = "admin"
 	// RoleUser is the USER role.
-	RoleUser Role = "USER"
+	RoleUser Role = "user"
 )
 
 func (e Role) String() string {
 	switch e {
 	case RoleAdmin:
-		return "ADMIN"
+		return "admin"
 	case RoleUser:
-		return "USER"
+		return "user"
 	default:
-		return "UNKNOWN"
+		return "unknown"
 	}
 }
 
@@ -40,15 +49,11 @@ const (
 	ProviderLocal  Provider = "local"
 )
 
-type CreateUser struct {
-	ID              int64
-	Email           string
-	EmailLocked     bool
-	Status          *UserStatus
-	Role            *Role
-	Provider        Provider
-	ProviderSubject *string
-	PasswordHash    *string
+type CreateLocalUser struct {
+	Email        string
+	PasswordHash string
+	Status       UserStatus
+	Role         Role
 }
 
 type UpdateUser struct {
@@ -62,17 +67,25 @@ type UpdateUser struct {
 }
 
 type UserInfo struct {
-	UpdateUser
-	EmailLocked bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID           int64
+	Email        string
+	EmailLocked  bool
+	Role         Role
+	Status       UserStatus
+	PasswordHash string
+	FullName     *string
+	Telephone    *string
+	AvatarURL    *string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type FindUser struct {
-	ID    *int64
-	Email *string
-	Role  *Role
-
+	ID       *int64
+	Email    *string
+	Role     *Role
+	Provider *Provider
+	Password *string
 	// The maximum number of users to return.
 	Limit *int
 }
@@ -81,8 +94,21 @@ type DeleteUser struct {
 	ID int64
 }
 
-func (s *Store) CreateUser(ctx context.Context, create *CreateUser) (*UserInfo, error) {
-	user, err := s.driver.CreateUser(ctx, create)
+func (s *Store) CreateLocalUser(ctx context.Context, create *CreateLocalUser) (*UserInfo, error) {
+	user, err := s.driver.CreateLocalUser(ctx, create)
+	if err != nil {
+		if isDuplicateKey(err) {
+			return nil, ErrUserAlreadyExists
+		}
+		return nil, err
+	}
+
+	s.userCache.Store(user.ID, user)
+	return user, nil
+}
+
+func (s *Store) UpsertGoogleUser(ctx context.Context, email, sub string) (*UserInfo, error) {
+	user, err := s.driver.UpsertGoogleUser(ctx, email, sub)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +119,22 @@ func (s *Store) CreateUser(ctx context.Context, create *CreateUser) (*UserInfo, 
 
 func (s *Store) UpdateUser(ctx context.Context, update *UpdateUser) (*UserInfo, error) {
 	user, err := s.driver.UpdateUser(ctx, update)
+	if err != nil {
+		return nil, err
+	}
+
+	s.userCache.Store(user.ID, user)
+	return user, nil
+}
+
+func (s *Store) GetUser(ctx context.Context, find *FindUser) (*UserInfo, error) {
+	if find.ID != nil {
+		if cache, ok := s.userCache.Load(*find.ID); ok {
+			return cache.(*UserInfo), nil
+		}
+	}
+
+	user, err := s.driver.GetUser(ctx, find)
 	if err != nil {
 		return nil, err
 	}
@@ -113,27 +155,15 @@ func (s *Store) ListUsers(ctx context.Context, find *FindUser) ([]*UserInfo, err
 	return list, nil
 }
 
-func (s *Store) GetUser(ctx context.Context, find *FindUser) (*UserInfo, error) {
-	if find.ID != nil {
-		if cache, ok := s.userCache.Load(*find.ID); ok {
-			return cache.(*UserInfo), nil
-		}
-	}
-
-	list, err := s.ListUsers(ctx, find)
-	if err != nil {
-		return nil, err
-	}
-	if len(list) == 0 {
-		return nil, nil
-	}
-
-	user := list[0]
-	s.userCache.Store(user.ID, user)
-	return user, nil
-}
-
 func (s *Store) DeleteUser(ctx context.Context, delete *DeleteUser) (bool, error) {
 	s.userCache.Delete(delete.ID)
 	return s.driver.DeleteUser(ctx, delete)
+}
+
+func isDuplicateKey(err error) bool {
+	var me *mysql.MySQLError
+	if errors.As(err, &me) {
+		return me.Number == 1062 // ER_DUP_ENTRY
+	}
+	return false
 }

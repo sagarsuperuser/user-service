@@ -1,8 +1,6 @@
 # User Service
 
-# User Service
-
-A Go-based user authentication and profile service built with a modular architecture inspired by Docker (Moby), emphasizing clear separation of concerns, interface-driven design, and production-ready simplicity.
+A user authentication and profile service built with a modular architecture inspired by Docker (Moby), emphasizing clear separation of concerns, interface-driven design, and production-ready simplicity.
 
 ## Features
 - User signup/login
@@ -10,9 +8,8 @@ A Go-based user authentication and profile service built with a modular architec
 - Profile management
 
 ## Tech Stack
-- Go (net/http)
+- Go
 - MySQL
-- Cookie-based sessions
 
 ## Run locally
 ```bash

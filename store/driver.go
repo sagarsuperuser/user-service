@@ -12,10 +12,12 @@ type Driver interface {
 	Close() error
 
 	// users model related methods.
-	CreateUser(ctx context.Context, create *CreateUser) (*UserInfo, error)
-	ListUsers(ctx context.Context, find *FindUser) ([]*UserInfo, error)
+	CreateLocalUser(ctx context.Context, in *CreateLocalUser) (*UserInfo, error)
+	GetUser(ctx context.Context, find *FindUser) (*UserInfo, error)
 	UpdateUser(ctx context.Context, update *UpdateUser) (*UserInfo, error)
 	DeleteUser(ctx context.Context, delete *DeleteUser) (bool, error)
+	UpsertGoogleUser(ctx context.Context, email, sub string) (*UserInfo, error)
+	ListUsers(ctx context.Context, find *FindUser) ([]*UserInfo, error)
 
 	// sessions model related methods
 	CreateSession(ctx context.Context, userID int64, hash [32]byte) (*SessionInfo, error)

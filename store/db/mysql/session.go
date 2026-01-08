@@ -40,9 +40,12 @@ func (d *DB) CreateSession(ctx context.Context, userID int64, hash [32]byte) (*s
 
 func (d *DB) GetActiveSessionByHash(ctx context.Context, hash [32]byte) (*store.SessionInfo, error) {
 	now := d.now()
-	var s store.SessionInfo
+	var (
+		s         store.SessionInfo
+		tokenHash []byte
+	)
 	err := d.db.QueryRowContext(ctx, `
-		SELECT id, user_id, expires_at, created_at, revoked_at
+		SELECT id, user_id, token_hash, expires_at, created_at, revoked_at
 		FROM sessions
 		WHERE token_hash = ?
 		AND revoked_at IS NULL
@@ -51,6 +54,7 @@ func (d *DB) GetActiveSessionByHash(ctx context.Context, hash [32]byte) (*store.
 	`, hash[:], now).Scan(
 		&s.ID,
 		&s.UserID,
+		&tokenHash,
 		&s.ExpiresAt,
 		&s.CreatedAt,
 		&s.RevokedAt,
@@ -63,6 +67,7 @@ func (d *DB) GetActiveSessionByHash(ctx context.Context, hash [32]byte) (*store.
 		return nil, err
 	}
 
+	copy(s.TokenHash[:], tokenHash)
 	s.IsActive = true
 	return &s, nil
 }

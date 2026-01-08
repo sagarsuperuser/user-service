@@ -59,6 +59,11 @@ func NewPutRoute(path string, handler httputil.APIFunc, opts ...RouteWrapper) Ro
 	return NewRoute(http.MethodPut, path, handler, opts...)
 }
 
+// NewPatchRoute initializes a new route with the http method PATCH.
+func NewPatchRoute(path string, handler httputil.APIFunc, opts ...RouteWrapper) Route {
+	return NewRoute(http.MethodPatch, path, handler, opts...)
+}
+
 // NewDeleteRoute initializes a new route with the http method DELETE.
 func NewDeleteRoute(path string, handler httputil.APIFunc, opts ...RouteWrapper) Route {
 	return NewRoute(http.MethodDelete, path, handler, opts...)

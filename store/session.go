@@ -50,11 +50,11 @@ func (s *Store) GetActiveSessionByToken(ctx context.Context, token string) (*Ses
 	hash := sha256.Sum256([]byte(token))
 	// check first in cache
 	if v, ok := s.sessionCache.Load(hash); ok {
-		sInfo := v.(SessionInfo)
-		if sInfo.ExpiresAt.After(s.now()) {
+		sInfo := v.(*SessionInfo)
+		if sInfo.ExpiresAt.Before(s.now()) {
 			return nil, sessionUtils.ErrSesssionExpired
 		}
-		return &sInfo, nil
+		return sInfo, nil
 	}
 	sInfo, err := s.driver.GetActiveSessionByHash(ctx, hash)
 	if err != nil {
@@ -66,7 +66,7 @@ func (s *Store) GetActiveSessionByToken(ctx context.Context, token string) (*Ses
 }
 
 // expire session, used by handlers
-func (s *Store) RevokeSession(ctx context.Context, session SessionInfo) (bool, error) {
+func (s *Store) RevokeSession(ctx context.Context, session *SessionInfo) (bool, error) {
 	// clear cache first
 	s.sessionCache.Delete(session.TokenHash)
 

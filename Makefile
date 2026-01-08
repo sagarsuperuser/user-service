@@ -1,13 +1,13 @@
 MIGRATE ?= migrate
-MIGRATIONS_DIR := migrations
+MIGRATIONS_DIR := store/db/mysql/migrations
 
-DB_USER ?= root
-DB_PASS ?= password
-DB_HOST ?= 127.0.0.1
-DB_PORT ?= 3306
-DB_NAME ?= appdb
+MYSQL_USER ?= appuser
+MYSQL_PASSWORD ?= password
+MYSQL_HOST ?= 127.0.0.1
+MYSQL_PORT ?= 3306
+MYSQL_DB ?= appdb
 
-DB_URL := mysql://$(DB_USER):$(DB_PASS)@tcp($(DB_HOST):$(DB_PORT))/$(DB_NAME)?multiStatements=true
+DB_URL := mysql://$(MYSQL_USER):$(MYSQL_PASSWORD)@tcp($(MYSQL_HOST):$(MYSQL_PORT))/$(MYSQL_DB)?multiStatements=true
 
 .PHONY: migrate-create migrate-up migrate-down migrate-force migrate-version
 

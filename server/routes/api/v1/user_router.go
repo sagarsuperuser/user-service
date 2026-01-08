@@ -19,9 +19,10 @@ func (ur *userRouter) Routes() []router.Route {
 }
 
 func (ur *userRouter) initRoutes() {
-	// protect user routes with session middleware as a RouteWrapper
+	// protect user routes with session middleware.
 	sessionMW := router.AuthSession(ur.backend.Store)
 	ur.routes = []router.Route{
-		router.NewGetRoute("/api/v1/user", ur.backend.GetUserList, sessionMW),
+		router.NewGetRoute("/user/me", ur.backend.GetCurrentUser, sessionMW),
+		router.NewPatchRoute("/user", ur.backend.UpdateUser, sessionMW),
 	}
 }

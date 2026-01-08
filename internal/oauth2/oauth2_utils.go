@@ -34,8 +34,8 @@ type ProviderUserInfoResp struct {
 	Name  string `json:"name"`
 }
 
-// NewOAuth2Config initializes a new OAuth2 Config for Google provider.
 // TODO: support multiple providers
+// NewOAuth2Config initializes a new OAuth2 Config for Google provider.
 func NewOAuth2Config(s *settings.Settings) *oauth2.Config {
 	u, err := url.Parse(s.OAuth2RedirectURL)
 	if err != nil {

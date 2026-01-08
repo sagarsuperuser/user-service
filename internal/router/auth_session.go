@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/sagarsuperuser/userprofile/errdefs"
@@ -9,21 +10,28 @@ import (
 	"github.com/sagarsuperuser/userprofile/store"
 )
 
-// sessionContextKey is unexported to avoid collisions.
+// sessionContextKey is unexported.
 type sessionContextKey struct{}
 
 // SessionInfoFromContext retrieves session info from context.
-func SessionInfoFromContext(ctx context.Context) (*store.SessionInfo, bool) {
-	s, ok := ctx.Value(sessionContextKey{}).(*store.SessionInfo)
-	return s, ok
+func SessionInfoFromContext(ctx context.Context) *store.SessionInfo {
+	if ctx == nil {
+		return nil
+	}
+
+	if val := ctx.Value(sessionContextKey{}); val != nil {
+		return val.(*store.SessionInfo)
+	}
+
+	return nil
 }
 
-func readCookie(r *http.Request, name string) (string, bool) {
+func readCookie(r *http.Request, name string) string {
 	c, err := r.Cookie(name)
 	if err != nil {
-		return "", false
+		return ""
 	}
-	return c.Value, true
+	return c.Value
 }
 
 // AuthSession wraps a route to enforce session authentication.
@@ -33,17 +41,20 @@ func AuthSession(store *store.Store) RouteWrapper {
 			method: route.Method(),
 			path:   route.Path(),
 			handler: func(ctx context.Context, rw http.ResponseWriter, req *http.Request, vars map[string]string) error {
-				token, ok := readCookie(req, sessionUtils.SessionCookieName)
-				if !ok || token == "" {
+				token := readCookie(req, sessionUtils.SessionCookieName)
+				if token == "" {
 					return errdefs.Unauthorized(sessionUtils.ErrSessionCookieNotFound)
 				}
 				sess, err := store.GetActiveSessionByToken(ctx, token)
 				if err != nil {
-					return errdefs.Unauthorized(sessionUtils.ErrSesssionExpired)
+					if errors.Is(err, sessionUtils.ErrSesssionExpired) {
+						return errdefs.Unauthorized(err)
+					}
+					return errdefs.System(err)
 				}
 
-				ctxWithSession := context.WithValue(ctx, sessionContextKey{}, sess)
-				return route.Handler()(ctxWithSession, rw, req.WithContext(ctxWithSession), vars)
+				ctx = context.WithValue(ctx, sessionContextKey{}, sess)
+				return route.Handler()(ctx, rw, req, vars)
 			},
 		}
 	}
