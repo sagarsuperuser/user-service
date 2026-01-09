@@ -31,11 +31,10 @@
 	</div>
 </div>
 <script>
-// Bust back/forward cache snapshots so profile isn't shown after logout.
-window.addEventListener('pageshow', function (e) {
-	if (e.persisted) {
-		window.location.reload();
-	}
+  window.addEventListener("pageshow", function(event) {
+    if (event.persisted) {
+        window.location.reload(); // Force refresh if loaded from cache
+    }
 });
 </script>
 {{end}}

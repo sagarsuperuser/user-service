@@ -27,14 +27,24 @@ func GenerateSessionID() string {
 
 // SetSessionookie sets the token to the cookie.
 func SetSessionCookie(rw http.ResponseWriter, req *http.Request, expiry time.Time, token string) {
-	cookie := new(http.Cookie)
-	cookie.Name = SessionCookieName
-	cookie.Value = token
-	cookie.Expires = expiry
-	cookie.Path = "/"
-	// Http-only helps mitigate the risk of client side script accessing the protected cookie.
-	cookie.HttpOnly = true
-	cookie.Secure = (req.TLS != nil)
-	cookie.SameSite = http.SameSiteLaxMode
-	http.SetCookie(rw, cookie)
+	http.SetCookie(rw, &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    token,
+		Expires:  expiry,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// ClearSessionCookie expires the session cookie on the client.
+func ClearSessionCookie(rw http.ResponseWriter) {
+	http.SetCookie(rw, &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
 }

@@ -55,21 +55,21 @@ func (c *APIClient) Request(ctx context.Context, incoming *http.Request, method,
 	return c.client.Do(req)
 }
 
-func (c *APIClient) FetchCurrentUser(ctx context.Context, r *http.Request) (*apiv1.UserResp, int, error) {
+func (c *APIClient) FetchCurrentUser(ctx context.Context, r *http.Request) (*apiv1.UserResp, error) {
 	resp, err := c.Request(ctx, r, http.MethodGet, "/user/me", nil)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, resp.Body)
-		return nil, resp.StatusCode, nil
+		return nil, nil
 	}
 
 	var user apiv1.UserResp
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	return &user, http.StatusOK, nil
+	return &user, nil
 }

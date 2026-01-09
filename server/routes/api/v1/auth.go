@@ -208,12 +208,14 @@ func (s *APIV1Service) LogOut(ctx context.Context, rw http.ResponseWriter, req *
 	// get session info from context
 	sInfo := router.SessionInfoFromContext(ctx)
 	if sInfo == nil {
-		errdefs.System(errors.New("session info not found in context"))
+		return errdefs.System(errors.New("session info not found in context"))
 	}
 	_, err := s.Store.RevokeSession(ctx, sInfo)
 	if err != nil {
-		errdefs.System(fmt.Errorf("failed to revoke session: %w", err))
+		return errdefs.System(fmt.Errorf("failed to revoke session: %w", err))
 	}
+	// expire session cookie
+	sessionUtils.ClearSessionCookie(rw)
 
 	return httputil.WriteRawJSON(rw, http.StatusOK, nil)
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 
-	sessionUtils "github.com/sagarsuperuser/userprofile/internal/session"
 	apiv1 "github.com/sagarsuperuser/userprofile/server/routes/api/v1"
 	"github.com/sagarsuperuser/userprofile/server/settings"
 )
@@ -84,12 +83,12 @@ func (f *Frontend) RegisterRoutes(r *mux.Router) {
 }
 
 func (f *Frontend) loginPage(w http.ResponseWriter, r *http.Request) {
-	user, status, err := f.api.FetchCurrentUser(r.Context(), r)
+	user, err := f.api.FetchCurrentUser(r.Context(), r)
 	if err != nil {
 		f.serverError(w, err)
 		return
 	}
-	if status == http.StatusOK && user != nil {
+	if user != nil {
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return
 	}
@@ -101,12 +100,12 @@ func (f *Frontend) loginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Frontend) signupPage(w http.ResponseWriter, r *http.Request) {
-	user, status, err := f.api.FetchCurrentUser(r.Context(), r)
+	user, err := f.api.FetchCurrentUser(r.Context(), r)
 	if err != nil {
 		f.serverError(w, err)
 		return
 	}
-	if status == http.StatusOK && user != nil {
+	if user != nil {
 		http.Redirect(w, r, "/profile", http.StatusFound)
 		return
 	}
@@ -119,11 +118,6 @@ func (f *Frontend) signupPage(w http.ResponseWriter, r *http.Request) {
 
 func (f *Frontend) profilePage(w http.ResponseWriter, r *http.Request) {
 	user := currentUserFromContext(r.Context())
-	if user == nil {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-
 	setNoCacheHeaders(w)
 	f.templates.Render(w, "profile.html", profilePageData{
 		Title: "Profile",
@@ -133,11 +127,6 @@ func (f *Frontend) profilePage(w http.ResponseWriter, r *http.Request) {
 
 func (f *Frontend) editProfilePage(w http.ResponseWriter, r *http.Request) {
 	user := currentUserFromContext(r.Context())
-	if user == nil {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-
 	setNoCacheHeaders(w)
 	f.templates.Render(w, "profile_edit.html", profileFormData{
 		Title:        "Edit Profile",
@@ -209,11 +198,6 @@ func (f *Frontend) handleProfileUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := currentUserFromContext(r.Context())
-	if user == nil {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-
 	payload := struct {
 		Email     *string `json:"email,omitempty"`
 		FullName  *string `json:"full_name,omitempty"`
@@ -235,8 +219,6 @@ func (f *Frontend) handleProfileUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	f.copySetCookies(w, resp)
-
 	if resp.StatusCode != http.StatusOK {
 		f.setFlash(w, readAPIMessage(resp, "Unable to update profile"))
 		http.Redirect(w, r, "/profile/edit", http.StatusFound)
@@ -247,20 +229,11 @@ func (f *Frontend) handleProfileUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Frontend) handleLogout(w http.ResponseWriter, r *http.Request) {
-	resp, err := f.api.Request(r.Context(), r, http.MethodGet, "/auth/logout", nil)
-	if err == nil && resp != nil {
+	resp, err := f.api.Request(r.Context(), r, http.MethodPost, "/auth/logout", nil)
+	if err == nil {
 		f.copySetCookies(w, resp)
 		resp.Body.Close()
 	}
-
-	// Clear session cookie locally to be safe
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionUtils.SessionCookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		MaxAge:   -1,
-	})
 
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -290,12 +263,12 @@ func (f *Frontend) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 // middleware
 func (f *Frontend) authenticated(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, status, err := f.api.FetchCurrentUser(r.Context(), r)
+		user, err := f.api.FetchCurrentUser(r.Context(), r)
 		if err != nil {
 			f.serverError(w, err)
 			return
 		}
-		if status == http.StatusUnauthorized || user == nil {
+		if user == nil {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
@@ -381,5 +354,7 @@ func currentUserFromContext(ctx context.Context) *apiv1.UserResp {
 
 func setNoCacheHeaders(w http.ResponseWriter) {
 	h := w.Header()
-	h.Set("Cache-Control", "no-store")
+	h.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	h.Set("Pragma", "no-cache")
+	h.Set("Expires", "0")
 }

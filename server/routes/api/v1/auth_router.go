@@ -28,6 +28,6 @@ func (ar *authRouter) initRoutes() {
 		router.NewPostRoute("/auth/login", ar.backend.LogIn),
 		router.NewGetRoute("/oauth2/login", ar.backend.Oauth2Login),
 		router.NewGetRoute("/oauth2/callback", ar.backend.Oauth2Callback),
-		router.NewGetRoute("/auth/logout", ar.backend.LogOut, sessionMW),
+		router.NewPostRoute("/auth/logout", ar.backend.LogOut, sessionMW),
 	}
 }

@@ -20,7 +20,7 @@ type DB struct {
 
 func NewDB(settings *settings.Settings, now common.NowFunc) store.Driver {
 	driver := DB{settings: settings}
-	driver.config = createConfig(settings)
+	driver.config = BuildConfig(settings)
 	dsn := driver.config.FormatDSN()
 
 	db, err := sql.Open("mysql", dsn)
@@ -59,22 +59,23 @@ func (d *DB) Close() error {
 	return d.db.Close()
 }
 
-func createConfig(settings *settings.Settings) *mysql.Config {
-	config := mysql.NewConfig()
-	config.User = settings.MySQLUser
-	config.Passwd = settings.MySQLPassword
-	config.Net = "tcp"
-	config.Addr = fmt.Sprintf("%s:%d", settings.MySQLHost, settings.MySQLPort)
-	config.DBName = settings.MySQLDatabase
+// BuildConfig creates a mysql.Config from settings.
+func BuildConfig(settings *settings.Settings) *mysql.Config {
+	cfg := mysql.NewConfig()
+	cfg.User = settings.MySQLUser
+	cfg.Passwd = settings.MySQLPassword
+	cfg.Net = "tcp"
+	cfg.Addr = fmt.Sprintf("%s:%d", settings.MySQLHost, settings.MySQLPort)
+	cfg.DBName = settings.MySQLDatabase
 	// Open MySQL connection with parameter.
 	// multiStatements=true is required for migration.
 	// See more in: https://github.com/go-sql-driver/mysql#multistatements
-	config.MultiStatements = true
-	config.ParseTime = true
+	cfg.MultiStatements = true
+	cfg.ParseTime = true
 	// Timeouts
-	config.Timeout = settings.MySQLConnectTimeout
-	config.ReadTimeout = settings.MySQLQueryTimeout
-	config.WriteTimeout = settings.MySQLQueryTimeout
-	return config
+	cfg.Timeout = settings.MySQLConnectTimeout
+	cfg.ReadTimeout = settings.MySQLQueryTimeout
+	cfg.WriteTimeout = settings.MySQLQueryTimeout
+	return cfg
 
 }
